@@ -7,6 +7,8 @@ pub enum StorageError {
     TryInt(std::num::TryFromIntError),
     Custom(&'static str),
     EOF,
+    UnexpectedEOF,
+    BadCRC32,
     Unkown,
 }
 
@@ -17,6 +19,8 @@ impl Display for StorageError {
             StorageError::TryInt(err) => write!(f, "Try Int Failure: {}", err),
             StorageError::Custom(msg) => write!(f, "Storage Error: {}", msg),
             StorageError::EOF => write!(f, "EOF Reached"),
+            StorageError::UnexpectedEOF => write!(f, "Unexpected EOF Reached"),
+            StorageError::BadCRC32 => write!(f, "Bad CRC32 checksum"),
             _ => write!(f, "Unkown Failure"),
         }
     }
@@ -34,7 +38,10 @@ impl Error for StorageError {
 
 impl From<std::io::Error> for StorageError {
     fn from(value: std::io::Error) -> Self {
-        StorageError::IO(value)
+        match value.kind() {
+            std::io::ErrorKind::UnexpectedEof => StorageError::UnexpectedEOF,
+            _ => StorageError::IO(value),
+        }
     }
 }
 
