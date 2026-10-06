@@ -130,12 +130,50 @@ mod test {
         {
             let mut kv = KeyValue::new(filename);
             kv.open().unwrap();
-            let res = kv.get(b"k1").unwrap().unwrap();
-            assert_eq!(res, b"v4");
-            let res = kv.get(b"k2").unwrap();
-            assert_eq!(res, None);
-            let res = kv.get(b"k3").unwrap().unwrap();
-            assert_eq!(res, b"v3");
+            assert_eq!(kv.get(b"k1").unwrap().unwrap(), b"v4");
+            assert_eq!(kv.get(b"k2").unwrap(), None);
+            assert_eq!(kv.get(b"k3").unwrap().unwrap(), b"v3");
+        }
+        let _ = fs::remove_file(filename);
+    }
+
+    #[test]
+    fn test_kv_checksum() {
+        let filename = ".test_db_b";
+        let _ = fs::remove_file(filename);
+        {
+            let mut kv = KeyValue::new(filename);
+            kv.open().unwrap();
+            kv.set(b"k1", b"v1").unwrap();
+            kv.set(b"k2", b"v2").unwrap();
+            kv.set(b"k3", b"v3").unwrap();
+            kv.set(b"k1", b"v4").unwrap();
+            kv.del(b"k2").unwrap();
+        }
+        // Corrupting last entry
+        let mut data = fs::read(filename).unwrap();
+        data.pop();
+        let l = data.len() - 1;
+        data[l] = 34u8;
+        fs::write(filename, data).unwrap();
+        {
+            let mut kv = KeyValue::new(filename);
+            kv.open().unwrap();
+            assert_eq!(kv.get(b"k1").unwrap().unwrap(), b"v4");
+            assert_eq!(kv.get(b"k2").unwrap().unwrap(), b"v2");
+            assert_eq!(kv.get(b"k3").unwrap().unwrap(), b"v3");
+            kv.set(b"k4", b"v4").unwrap();
+            kv.set(b"k5", b"v5").unwrap();
+            kv.del(b"k2").unwrap();
+        }
+        {
+            let mut kv = KeyValue::new(filename);
+            kv.open().unwrap();
+            assert_eq!(kv.get(b"k1").unwrap().unwrap(), b"v4");
+            assert_eq!(kv.get(b"k2").unwrap(), None);
+            assert_eq!(kv.get(b"k3").unwrap().unwrap(), b"v3");
+            assert_eq!(kv.get(b"k4").unwrap().unwrap(), b"v4");
+            assert_eq!(kv.get(b"k5").unwrap().unwrap(), b"v5");
         }
         let _ = fs::remove_file(filename);
     }

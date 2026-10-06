@@ -10,7 +10,7 @@ impl Log {
     pub fn new( filename : &str ) -> Self {
         Log {
             filename : filename.into(),
-            fp : None
+            fp : None,
         }
     }
 }
@@ -23,6 +23,7 @@ pub trait Logger {
 }
 
 use std::fs::OpenOptions;
+use std::io::{Seek,SeekFrom,BufReader,BufWriter};
 impl Logger for Log {
     fn open( &mut self ) -> Result<(),StorageError> {
         if let Some(p) = self.filename.parent() {
@@ -51,8 +52,12 @@ impl Logger for Log {
 
     fn write( &mut self, entry : &Entry ) -> Result<(), StorageError> {
         if let Some(fp) = self.fp.as_mut() {
+            //{
+                //let mut writer = BufWriter::new(&mut *fp);
+                //entry.encode( &mut writer )?;
+            //}
             // Encode entry to file
-            entry.encode( fp )?;
+            entry.encode(fp)?;
             // Sync File to Disk
             fp.sync_all()?;
             Ok(())
@@ -63,10 +68,16 @@ impl Logger for Log {
 
     fn read( &mut self, entry : &mut Entry ) -> Result<bool, StorageError> {
         if let Some(fp) = self.fp.as_mut() {
+            let offset = fp.stream_position()?;
             match entry.decode( fp ) {
                 Ok(_) => Ok(false),
                 Err(err) => match err {
                     StorageError::EOF => Ok(true),
+                    StorageError::UnexpectedEOF |
+                    StorageError::BadCRC32 => {
+                        fp.seek(SeekFrom::Start(offset))?;
+                        Ok(true)
+                    }
                     _ => Err(err),
                 },
             }
@@ -75,4 +86,3 @@ impl Logger for Log {
         }
     }
 }
-
