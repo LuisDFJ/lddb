@@ -25,20 +25,15 @@ impl Entry {
     }
 }
 
-use super::StorageError;
-pub trait SerDesEntry {
-    fn encode<W>(&self, writer : &mut W) -> Result<(), StorageError>
-        where W : std::io::Write;
-    fn decode<R>(&mut self, reader : &mut R) -> Result<(), StorageError>
-        where R : std::io::Read;
-}
+use crate::errors::DBError;
+use crate::serial::{Encode, Decode};
 
 use std::io::{Read};
 use crate::crc32::{crc32_hash_fast, CRC32Reader};
-impl SerDesEntry for Entry {
+impl Encode for Entry {
     // | Key Size | Val Size | Del Flag | Key     | Val     |
     // | 4 bytes  | 4 bytes  | 1 byte   | N bytes | M bytes |
-    fn encode<W>(&self, writer : &mut W) -> Result<(), StorageError>
+    fn encode<W>(&self, writer : &mut W) -> Result<(), DBError>
         where W : std::io::Write
     {
         let k_size : u32 = self.key.len().try_into()?;
@@ -60,8 +55,10 @@ impl SerDesEntry for Entry {
         writer.flush()?;
         Ok(())
     }
+}
 
-    fn decode<R>(&mut self, reader : &mut R) -> Result<(), StorageError>
+impl Decode for Entry {
+    fn decode<R>(&mut self, reader : &mut R) -> Result<(), DBError>
         where R : std::io::Read
     {
         // CRC32 Read
@@ -77,25 +74,25 @@ impl SerDesEntry for Entry {
         reader.read_exact(&mut self.key)?;
         reader.read_exact(&mut self.val)?;
         if crc32 != reader.finalize() {
-            return Err(StorageError::BadCRC32)
+            return Err(DBError::BadCRC32)
         }
         Ok(())
     }
 }
 
-fn read_crc32<R>(reader : &mut R) -> Result<u32,StorageError>
+fn read_crc32<R>(reader : &mut R) -> Result<u32,DBError>
     where R : std::io::Read
 {
     let mut buffer = [0u8;4];
     let n = reader.read(&mut buffer)?;
     match n {
-        0 => Err(StorageError::EOF),
+        0 => Err(DBError::EOF),
         4 => Ok(u32::from_le_bytes(buffer)),
-        _ => Err(StorageError::UnexpectedEOF),
+        _ => Err(DBError::UnexpectedEOF),
     }
 }
 
-fn read_u32<R>(reader : &mut R) -> Result<u32,StorageError>
+fn read_u32<R>(reader : &mut R) -> Result<u32,DBError>
     where R : std::io::Read
 {
     let mut buffer = [0u8;4];
@@ -103,7 +100,7 @@ fn read_u32<R>(reader : &mut R) -> Result<u32,StorageError>
     Ok(u32::from_le_bytes(buffer))
 }
 
-fn read_bool<R>(reader : &mut R) -> Result<bool,StorageError>
+fn read_bool<R>(reader : &mut R) -> Result<bool,DBError>
     where R : std::io::Read
 {
     let mut buffer = [0u8];

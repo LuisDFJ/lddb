@@ -15,17 +15,19 @@ impl Log {
     }
 }
 
-use super::{StorageError, SerDesEntry, Entry};
+use super::Entry;
+use crate::errors::DBError;
+use crate::serial::{Encode,Decode};
 pub trait Logger {
-    fn open( &mut self ) -> Result<(),StorageError>;
-    fn write( &mut self, entry : &Entry ) -> Result<(), StorageError>;
-    fn read( &mut self, entry : &mut Entry ) -> Result<bool, StorageError>;
+    fn open( &mut self ) -> Result<(),DBError>;
+    fn write( &mut self, entry : &Entry ) -> Result<(), DBError>;
+    fn read( &mut self, entry : &mut Entry ) -> Result<bool, DBError>;
 }
 
 use std::fs::OpenOptions;
 use std::io::{Seek,SeekFrom,BufReader,BufWriter};
 impl Logger for Log {
-    fn open( &mut self ) -> Result<(),StorageError> {
+    fn open( &mut self ) -> Result<(),DBError> {
         if let Some(p) = self.filename.parent() {
             // If p == "" then file is in "./" dir
             let mut dir : PathBuf = p.into();
@@ -47,10 +49,10 @@ impl Logger for Log {
                 return Ok(())
             }
         }
-        Err(StorageError::Custom("wrong path"))
+        Err(DBError::Custom("wrong path"))
     }
 
-    fn write( &mut self, entry : &Entry ) -> Result<(), StorageError> {
+    fn write( &mut self, entry : &Entry ) -> Result<(), DBError> {
         if let Some(fp) = self.fp.as_mut() {
             //{
                 //let mut writer = BufWriter::new(&mut *fp);
@@ -62,19 +64,19 @@ impl Logger for Log {
             fp.sync_all()?;
             Ok(())
         } else {
-            Err(StorageError::Custom("uninitialized log"))
+            Err(DBError::Custom("uninitialized log"))
         }
     }
 
-    fn read( &mut self, entry : &mut Entry ) -> Result<bool, StorageError> {
+    fn read( &mut self, entry : &mut Entry ) -> Result<bool, DBError> {
         if let Some(fp) = self.fp.as_mut() {
             let offset = fp.stream_position()?;
             match entry.decode( fp ) {
                 Ok(_) => Ok(false),
                 Err(err) => match err {
-                    StorageError::EOF => Ok(true),
-                    StorageError::UnexpectedEOF |
-                    StorageError::BadCRC32 => {
+                    DBError::EOF => Ok(true),
+                    DBError::UnexpectedEOF |
+                    DBError::BadCRC32 => {
                         fp.seek(SeekFrom::Start(offset))?;
                         Ok(true)
                     }
@@ -82,7 +84,7 @@ impl Logger for Log {
                 },
             }
         } else {
-            Err(StorageError::Custom("uninitialized log"))
+            Err(DBError::Custom("uninitialized log"))
         }
     }
 }

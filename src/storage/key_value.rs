@@ -16,25 +16,25 @@ impl KeyValue {
 }
 
 use std::hash::Hash;
-use super::StorageError;
+use crate::errors::DBError;
 
 pub trait InMemory<Key,Val>
 where
     Key : Hash + Eq
 {
-    fn open(&mut self) -> Result<(), StorageError>;
-    //fn close(&mut self) -> Result<(), StorageError>;
-    fn get<K>(&self, key : K) -> Result<Option<&Val>, StorageError>
+    fn open(&mut self) -> Result<(), DBError>;
+    //fn close(&mut self) -> Result<(), DBError>;
+    fn get<K>(&self, key : K) -> Result<Option<&Val>, DBError>
         where K : Into<Key>;
-    fn set<K,V>(&mut self, key : K, val : V) -> Result<bool, StorageError>
+    fn set<K,V>(&mut self, key : K, val : V) -> Result<bool, DBError>
         where K : Into<Key>, V : Into<Val>;
-    fn del<K>(&mut self, key : K) -> Result<bool, StorageError>
+    fn del<K>(&mut self, key : K) -> Result<bool, DBError>
         where K : Into<Key>;
 }
 
 use super::{Logger, Entry};
 impl InMemory<Vec<u8>,Vec<u8>> for KeyValue {
-    fn open(&mut self) -> Result<(), StorageError> {
+    fn open(&mut self) -> Result<(), DBError> {
         self.log.open()?;
 
         loop {
@@ -49,13 +49,13 @@ impl InMemory<Vec<u8>,Vec<u8>> for KeyValue {
 
         Ok(())
     }
-    //fn close(&mut self) -> Result<(), StorageError> { Ok(()) }
-    fn get<K>(&self, key : K) -> Result<Option<&Vec<u8>>, StorageError>
+    //fn close(&mut self) -> Result<(), DBError> { Ok(()) }
+    fn get<K>(&self, key : K) -> Result<Option<&Vec<u8>>, DBError>
         where K : Into<Vec<u8>>
     {
         Ok(self.mem.get(&key.into()))
     }
-    fn set<K,V>(&mut self, key : K, val : V) -> Result<bool, StorageError>
+    fn set<K,V>(&mut self, key : K, val : V) -> Result<bool, DBError>
         where K : Into<Vec<u8>>, V : Into<Vec<u8>>
     {
         let mut entry = Entry::from(key, val);
@@ -65,7 +65,7 @@ impl InMemory<Vec<u8>,Vec<u8>> for KeyValue {
             None => Ok(false),
         }
     }
-    fn del<K>(&mut self, key : K) -> Result<bool, StorageError>
+    fn del<K>(&mut self, key : K) -> Result<bool, DBError>
         where K : Into<Vec<u8>>
     {
         let mut entry = Entry::from(key,[]);
