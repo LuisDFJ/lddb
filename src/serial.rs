@@ -1,34 +1,21 @@
-use crate::errors::DBError;
-use std::io::{Read,Write};
+mod arrays;
+mod integers;
+
+#[derive(Debug)]
+pub enum DecodeError {
+    Incomplete { needed: usize },
+    Invalid(&'static str),
+}
+
+#[derive(Debug)]
+pub struct EncodeError { pub needed: usize }
 
 pub trait Encode {
-    fn encode<W : Write>(&self, writer : &mut W) -> Result<(), DBError>;
+    fn encoded_len(&self) -> usize;
+    fn encode(&self, output : &mut [u8]) -> Result<usize, EncodeError>;
 }
 
-pub trait Decode {
-    fn decode<R : Read>(&mut self, reader : &mut R) -> Result<(), DBError>;
-}
-
-impl <T: Encode + ?Sized> Encode for &T {
-    fn encode<W : Write>(&self, writer : &mut W) -> Result<(), DBError> {
-        (**self).encode(writer)
-    }
-}
-
-impl <T: Encode> Encode for [T] {
-    fn encode<W : Write>(&self, writer : &mut W) -> Result<(), DBError> {
-        let mut buffer = Vec::new();
-        for item in self {
-            item.encode(&mut buffer)?;
-        }
-        writer.write_all(&buffer)?;
-        Ok(())
-    }
-}
-
-impl <T: Encode> Encode for Vec<T> {
-    fn encode<W : Write>(&self, writer : &mut W) -> Result<(), DBError> {
-        self.as_slice().encode(writer)
-    }
+pub trait Decode<'a> : Sized {
+    fn decode(input : &mut &'a [u8]) -> Result<Self, DecodeError>;
 }
 

@@ -8,6 +8,7 @@ pub enum DBError {
     Custom(&'static str),
     EOF,
     UnexpectedEOF,
+    UnexpectedType,
     BadCRC32,
     Unkown,
 }
@@ -20,6 +21,7 @@ impl Display for DBError {
             DBError::Custom(msg) => write!(f, "DB Error: {}", msg),
             DBError::EOF => write!(f, "EOF Reached"),
             DBError::UnexpectedEOF => write!(f, "Unexpected EOF Reached"),
+            DBError::UnexpectedType => write!(f, "Unexpected Type"),
             DBError::BadCRC32 => write!(f, "Bad CRC32 checksum"),
             _ => write!(f, "Unkown Failure"),
         }

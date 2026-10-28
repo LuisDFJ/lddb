@@ -4,7 +4,7 @@ mod crc32_reader;
 
 pub use self::crc32_1_fold::crc32_hash;
 pub use self::crc32_8_fold::crc32_hash_fast;
-pub use self::crc32_reader::CRC32Reader;
+pub use self::crc32_reader::CRC32Cursor;
 
 
 #[cfg(test)]
@@ -34,11 +34,11 @@ use super::*;
     #[test]
     fn test_crc32_reader() {
         let text = b"128394 919288 1928383 nnajdjadh";
-        let mut reader = &text[..];
-        let mut crc32_reader = CRC32Reader::new(&mut reader);
+        let mut crc32_reader = CRC32Cursor::new(text);
 
         let mut buf = vec![];
-        crc32_reader.read_to_end(&mut buf).unwrap();
+        let res = crc32_reader.decode().unwrap();
+        assert_eq!( res, text );
         assert_eq!( crc32_reader.finalize(), crc32_hash(text) );
     }
 }

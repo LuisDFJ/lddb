@@ -1,3 +1,6 @@
+const TAG_I64 : u8 = 0;
+const TAG_STR : u8 = 1;
+
 #[derive(Debug,PartialEq)]
 pub enum Cell {
     I64(i64),
@@ -20,14 +23,15 @@ impl Encode for Cell {
         where W : std::io::Write
     {
         match self {
-            Cell::I64(i) => writer.write_all(&i.to_le_bytes())?,
-            Cell::Str(s) => {
-                let l : u32 = s.len().try_into()?;
-                writer.write_all(&l.to_le_bytes())?;
-                writer.write_all(s)?;
+            Cell::I64(i) => {
+                TAG_I64.encode(writer)?;
+                i.encode(writer)
             },
-        };
-        Ok(())
+            Cell::Str(s) => {
+                TAG_STR.encode(writer)?;
+                s.encode(writer)
+            },
+        }
     }
 }
 
@@ -35,24 +39,22 @@ impl Decode for Cell {
     fn decode<R>(&mut self, reader : &mut R) -> Result<(), DBError>
         where R : std::io::Read
     {
-        match self {
-            Cell::I64(_) => {
-                let mut buf = [0u8;8];
-                reader.read_exact(&mut buf)?;
-                *self = Cell::I64(i64::from_le_bytes(buf));
+        let mut tag = 0u8;
+        tag.decode(reader)?;
+        match tag {
+            TAG_I64 => {
+                let mut i = 0i64;
+                i.decode(reader)?;
+                *self = Cell::I64(i);
             },
-            Cell::Str(_) => {
-                // Read Lenght
-                let mut buf = [0u8;4];
-                reader.read_exact(&mut buf)?;
-                let l = u32::from_le_bytes(buf);
-                // Read Buffer
-                let mut buf : Vec<u8> = Vec::new();
-                buf.resize(l as usize, 0);
-                reader.read_exact(&mut buf)?;
-                *self = Cell::Str(buf);
+            TAG_STR => {
+                let mut s = Vec::new();
+                s.decode(reader)?;
+                println!("Hello {:?}", s);
+                *self = Cell::Str(s);
             },
-        }
+            _ => return Err(DBError::UnexpectedType),
+        };
         Ok(())
     }
 }
@@ -79,7 +81,7 @@ mod test {
         let i = Cell::Str(b"1234 1234".into());
         i.encode(&mut buffer).unwrap();
 
-        let mut j = i.from();
+        let mut j = Cell::I64(0);
         let mut reader = &buffer[..];
         j.decode(&mut reader).unwrap();
 

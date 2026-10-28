@@ -66,17 +66,6 @@ impl Schema {
     }
 }
 
-impl Decode for Vec<Cell> {
-    fn decode<R>(&mut self, reader : &mut R) -> Result<(), DBError>
-        where R : std::io::Read
-    {
-        for cell in self.iter_mut() {
-            cell.decode(reader)?;
-        }
-        Ok(())
-    }
-}
-
 #[cfg(test)]
 mod test {
     use super::*;

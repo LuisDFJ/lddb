@@ -25,87 +25,48 @@ impl Entry {
     }
 }
 
-use crate::errors::DBError;
-use crate::serial::{Encode, Decode};
-
-use std::io::{Read};
-use crate::crc32::{crc32_hash_fast, CRC32Reader};
+use crate::serial::{Encode, Decode,EncodeError,DecodeError};
+use crate::crc32::{crc32_hash_fast, CRC32Cursor};
 impl Encode for Entry {
-    // | Key Size | Val Size | Del Flag | Key     | Val     |
-    // | 4 bytes  | 4 bytes  | 1 byte   | N bytes | M bytes |
-    fn encode<W>(&self, writer : &mut W) -> Result<(), DBError>
-        where W : std::io::Write
-    {
-        let k_size : u32 = self.key.len().try_into()?;
-        let v_size : u32 = self.val.len().try_into()?;
-        let mut msg : Vec<u8> = Vec::new();
-        // Key/Value Size Encoding
-        msg.extend(k_size.to_le_bytes());
-        msg.extend(v_size.to_le_bytes());
-        // Del Flag Encoding
-        msg.push( self.del.into() );
-        // Key/Value Encoding
-        msg.extend(self.key.clone());
-        msg.extend(self.val.clone());
-        // CRC32 IEEE checksum
-        let crc32 : u32 = crc32_hash_fast(&msg);
-        // Write and Flush
-        writer.write_all(&crc32.to_le_bytes())?;
-        writer.write_all(&msg)?;
-        writer.flush()?;
-        Ok(())
+    fn encoded_len(&self) -> usize {
+        4 + 4 + 4 + 1 + self.key.len() + self.val.len()
     }
-}
-
-impl Decode for Entry {
-    fn decode<R>(&mut self, reader : &mut R) -> Result<(), DBError>
-        where R : std::io::Read
-    {
-        // CRC32 Read
-        let crc32  = read_crc32(reader)?;
-        // Creating CRC32 Reader
-        let reader = &mut CRC32Reader::new(reader);
-        // Key/Value Size Decoding
-        let k_size = read_u32(reader)?;
-        let v_size = read_u32(reader)?;
-        self.del = read_bool(reader)?;
-        self.val.resize(v_size as usize, 0);
-        self.key.resize(k_size as usize, 0);
-        reader.read_exact(&mut self.key)?;
-        reader.read_exact(&mut self.val)?;
-        if crc32 != reader.finalize() {
-            return Err(DBError::BadCRC32)
+    // |  CRC32   | Del Flag | Key Size | Key     | Val Size | Val     |
+    // | 4 bytes  | 1 byte   | 4 bytes  | N bytes | 4 bytes  | M bytes |
+    fn encode(&self, output : &mut [u8]) -> Result<usize,EncodeError> {
+        let needed = self.encoded_len();
+        if output.len() < needed {
+            return Err(EncodeError{needed})
         }
-        Ok(())
+        //let k_size : u32 = self.key.len() as u32;
+        //let v_size : u32 = self.val.len() as u32;
+
+        let mut pos = 4;
+        //pos += k_size.encode(&mut output[pos..])?;
+        //pos += v_size.encode(&mut output[pos..])?;
+        pos += (self.del as u8).encode(&mut output[pos..])?;
+        pos += self.key.encode(&mut output[pos..])?;
+        pos += self.val.encode(&mut output[pos..])?;
+        crc32_hash_fast(&output[4..]).encode(output)?;
+        Ok(pos)
     }
 }
 
-fn read_crc32<R>(reader : &mut R) -> Result<u32,DBError>
-    where R : std::io::Read
-{
-    let mut buffer = [0u8;4];
-    let n = reader.read(&mut buffer)?;
-    match n {
-        0 => Err(DBError::EOF),
-        4 => Ok(u32::from_le_bytes(buffer)),
-        _ => Err(DBError::UnexpectedEOF),
+impl <'a> Decode<'a> for Entry {
+    fn decode(input : &mut &'a [u8]) -> Result<Self, DecodeError> {
+        let crc32 = u32::decode(input)?;
+        // Creating CRC32 Reader
+        let cursor = &mut CRC32Cursor::new(input);
+        //let k_size : u32 = cursor.decode()?;
+        //let v_size : u32 = cursor.decode()?;
+        let del : u8 = cursor.decode()?;
+        let key : Vec<u8> = cursor.decode()?;
+        let val : Vec<u8> = cursor.decode()?;
+        if crc32 != cursor.finalize() {
+            return Err(DecodeError::Invalid("corrupted entry"))
+        }
+        Ok(Entry{del:del != 0,key,val})
     }
-}
-
-fn read_u32<R>(reader : &mut R) -> Result<u32,DBError>
-    where R : std::io::Read
-{
-    let mut buffer = [0u8;4];
-    reader.read_exact(&mut buffer)?;
-    Ok(u32::from_le_bytes(buffer))
-}
-
-fn read_bool<R>(reader : &mut R) -> Result<bool,DBError>
-    where R : std::io::Read
-{
-    let mut buffer = [0u8];
-    reader.read_exact(&mut buffer)?;
-    Ok(buffer[0] != 0)
 }
 
 #[cfg(test)]
@@ -116,11 +77,7 @@ mod test {
         let entry = Entry::from( b"key", b"val" );
         let mut buffer = vec![];
         entry.encode(&mut buffer).unwrap();
-
-        let mut test = Entry::new();
-        let mut reader = &buffer[..];
-        test.decode(&mut reader).unwrap();
-
+        let test = Entry::decode(&mut &buffer[..]).unwrap();
         assert_eq!(test, entry);
     }
 }
