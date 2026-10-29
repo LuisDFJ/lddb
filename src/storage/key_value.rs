@@ -38,14 +38,16 @@ impl InMemory<Vec<u8>,Vec<u8>> for KeyValue {
         self.log.open()?;
 
         loop {
-            let mut entry = Entry::new();
-            if self.log.read(&mut entry)? { break }
-            if entry.del {
-                self.mem.remove( &entry.key );
-            } else {
-                self.mem.insert( entry.key, entry.val );
-            }
+            if let Some(entry) = self.log.read()? {
+                if entry.del {
+                    self.mem.remove( &entry.key );
+                } else {
+                    self.mem.insert( entry.key, entry.val );
+                }
+            } else { break }
         }
+
+        self.log.write_lock()?;
 
         Ok(())
     }
@@ -60,6 +62,7 @@ impl InMemory<Vec<u8>,Vec<u8>> for KeyValue {
     {
         let mut entry = Entry::from(key, val);
         self.log.write(&mut entry)?;
+        self.log.sync()?;
         match self.mem.insert(entry.key, entry.val) {
             Some(_) => Ok(true),
             None => Ok(false),

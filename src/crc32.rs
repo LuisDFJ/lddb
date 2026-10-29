@@ -9,9 +9,8 @@ pub use self::crc32_reader::CRC32Cursor;
 
 #[cfg(test)]
 mod test {
-    use std::io::Read;
+    use super::*;
 
-use super::*;
     #[test]
     fn test_crc32_hash() {
         // Results compared with CRC-32/ISO-HDLC at https://crccalc.com
@@ -36,9 +35,13 @@ use super::*;
         let text = b"128394 919288 1928383 nnajdjadh";
         let mut crc32_reader = CRC32Cursor::new(text);
 
-        let mut buf = vec![];
-        let res = crc32_reader.decode().unwrap();
-        assert_eq!( res, text );
+        let mut buf = Vec::new();
+        for _ in 0..text.len() {
+            let res : u8 = crc32_reader.decode().unwrap();
+            buf.push(res);
+        }
+
+        assert_eq!( buf, text );
         assert_eq!( crc32_reader.finalize(), crc32_hash(text) );
     }
 }

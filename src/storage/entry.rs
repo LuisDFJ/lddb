@@ -75,7 +75,7 @@ mod test {
     #[test]
     fn test_entry_encode_decode() {
         let entry = Entry::from( b"key", b"val" );
-        let mut buffer = vec![];
+        let mut buffer = Vec::with_capacity(entry.encoded_len());
         entry.encode(&mut buffer).unwrap();
         let test = Entry::decode(&mut &buffer[..]).unwrap();
         assert_eq!(test, entry);
